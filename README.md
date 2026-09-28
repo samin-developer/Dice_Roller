@@ -18,9 +18,7 @@ A modern and interactive **3D Dice Roller Web App** that simulates random dice r
 - ✨ Smooth animations and visual effects
 - 📱 Responsive design
 
-## 📸 Preview
 
-![3D Dice Roller Preview](screenshot.png)
 
 ## 🛠️ Technologies Used
 
