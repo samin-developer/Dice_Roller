@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Dice Roller App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        .scene {
+            perspective: 1200px;
+        }
+
+        .cube {
+            width: 100px;
+            height: 100px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 16px;
+            display: grid;
+            grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+            padding: 12px;
+            box-sizing: border-box;
+            background: linear-gradient(145deg, #ffffff, #e6e6e6);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.15), 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .dark .cube-face {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5), 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .dot {
+            width: 16px;
+            height: 16px;
+            background: #ef4444;
+            border-radius: 50%;
+            justify-self: center;
+            align-self: center;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .dark .dot {
+            background: #f59e0b;
+            box-shadow: 0 0 8px rgba(245, 158, 11, 0.6), inset 0 1px 3px rgba(0, 0, 0, 0.6);
+        }
+
+        /* 3D Cube Face Positions */
+        .face-1 { transform: rotateY(0deg) translateZ(50px); }
+        .face-6 { transform: rotateY(180deg) translateZ(50px); }
+        .face-2 { transform: rotateY(-90deg) translateZ(50px); }
+        .face-5 { transform: rotateY(90deg) translateZ(50px); }
+        .face-3 { transform: rotateX(90deg) translateZ(50px); }
+        .face-4 { transform: rotateX(-90deg) translateZ(50px); }
+
+        @media (min-width: 640px) {
+            .cube { width: 120px; height: 120px; }
+            .cube-face { width: 120px; height: 120px; padding: 14px; }
+            .dot { width: 20px; height: 20px; }
+            .face-1 { transform: rotateY(0deg) translateZ(60px); }
+            .face-6 { transform: rotateY(180deg) translateZ(60px); }
+            .face-2 { transform: rotateY(-90deg) translateZ(60px); }
+            .face-5 { transform: rotateY(90deg) translateZ(60px); }
+            .face-3 { transform: rotateX(90deg) translateZ(60px); }
+            .face-4 { transform: rotateX(-90deg) translateZ(60px); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-full flex flex-col justify-between font-sans antialiased selection:bg-amber-500 selection:text-slate-900 transition-colors duration-300">
+
+    <header class="w-full max-w-4xl mx-auto p-6 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <i class="fa-solid fa-dice-d6 text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white">3D Dice Roller</h1>
+                <p class="text-xs text-slate-400">Random Physics Simulator & Tracker</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <button id="soundToggle" onclick="toggleSound()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition" title="Toggle Sound">
+                <i id="soundIcon" class="fa-solid fa-volume-high text-amber-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-4xl mx-auto px-6 py-8 flex-grow flex flex-col items-center gap-8">
+        
+        <!-- Scoreboard Stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full max-w-lg">
+            <div class="bg-slate-800/60 border border-slate-800 rounded-2xl p-4 text-center backdrop-blur">
+                <span class="text-xs uppercase tracking-wider text-slate-400 font-medium">Total Rolls</span>
+                <span id="statRolls" class="text-2xl font-black text-white block mt-1">0</span>
+            </div>
+            <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-center backdrop-blur">
+                <span class="text-xs uppercase tracking-wider text-amber-400 font-medium">Last Sum</span>
+                <span id="statLastSum" class="text-2xl font-black text-amber-400 block mt-1">-</span>
+            </div>
+            <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-center backdrop-blur">
+                <span class="text-xs uppercase tracking-wider text-indigo-400 font-medium">Highest Sum</span>
+                <span id="statHighest" class="text-2xl font-black text-indigo-400 block mt-1">-</span>
+            </div>
+            <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center backdrop-blur">
+                <span class="text-xs uppercase tracking-wider text-emerald-400 font-medium">Doubles</span>
+                <span id="statDoubles" class="text-2xl font-black text-emerald-400 block mt-1">0</span>
+            </div>
+        </div>
+
+        <!-- Dice Count Selector -->
+        <div class="flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80">
+            <button id="btn1Dice" onclick="setDiceCount(1)" class="px-5 py-2 rounded-xl font-bold text-sm bg-amber-500 text-slate-950 shadow transition">
+                1 Dice
+            </button>
+            <button id="btn2Dice" onclick="setDiceCount(2)" class="px-5 py-2 rounded-xl font-bold text-sm text-slate-400 hover:text-white transition">
+                2 Dice
+            </button>
+        </div>
+
+        <div class="scene my-6 flex items-center justify-center gap-8 sm:gap-12 min-h-[160px]">
+            <!-- Die 1 -->
+            <div id="dice1" class="cube">
+                <!-- Face 1 -->
+                <div class="cube-face face-1">
+                    <div></div><div></div><div></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div></div><div></div><div></div>
+                </div>
+                <!-- Face 2 -->
+                <div class="cube-face face-2">
+                    <div class="dot"></div><div></div><div></div>
+                    <div></div><div></div><div></div>
+                    <div></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 3 -->
+                <div class="cube-face face-3">
+                    <div class="dot"></div><div></div><div></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 4 -->
+                <div class="cube-face face-4">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div></div><div></div><div></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 5 -->
+                <div class="cube-face face-5">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 6 -->
+                <div class="cube-face face-6">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+            </div>
+
+            <!-- Die 2 (Hidden by default) -->
+            <div id="dice2" class="cube hidden">
+                <!-- Face 1 -->
+                <div class="cube-face face-1">
+                    <div></div><div></div><div></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div></div><div></div><div></div>
+                </div>
+                <!-- Face 2 -->
+                <div class="cube-face face-2">
+                    <div class="dot"></div><div></div><div></div>
+                    <div></div><div></div><div></div>
+                    <div></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 3 -->
+                <div class="cube-face face-3">
+                    <div class="dot"></div><div></div><div></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 4 -->
+                <div class="cube-face face-4">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div></div><div></div><div></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 5 -->
+                <div class="cube-face face-5">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div></div><div class="dot"></div><div></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+                <!-- Face 6 -->
+                <div class="cube-face face-6">
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                    <div class="dot"></div><div></div><div class="dot"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Outcome Display Banner -->
+        <div class="text-center min-h-[50px] flex flex-col justify-center items-center">
+            <h2 id="resultTitle" class="text-2xl font-extrabold text-white tracking-tight">Ready to Roll</h2>
+            <p id="resultSubtitle" class="text-sm text-slate-400 mt-1">Press Roll Dice or Spacebar</p>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="flex items-center gap-4 w-full max-w-xs">
+            <button id="rollBtn" onclick="rollDice()" class="flex-1 py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-lg shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-dice"></i> Roll Dice
+            </button>
+            <button onclick="resetStats()" class="p-4 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-400 hover:text-white border border-slate-700 transition" title="Reset Counter">
+                <i class="fa-solid fa-rotate-left"></i>
+            </button>
+        </div>
+
+        <div class="w-full max-w-lg mt-4 bg-slate-800/40 border border-slate-800/80 rounded-2xl p-4">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Recent Roll History</h3>
+            <div id="historyList" class="flex gap-2 overflow-x-auto pb-1 text-sm text-slate-300 min-h-[38px] items-center">
+                <span class="text-xs text-slate-500 italic">No rolls recorded yet</span>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="w-full max-w-4xl mx-auto p-6 text-center text-xs text-slate-500 border-t border-slate-800/80">
+        3D Interactive Dice Roll Application • Built with Tailwind CSS & Web Audio API
+    </footer>
+
+    <script>
+        // State variables
+        let numDice = 1;
+        let totalRolls = 0;
+        let highestSum = 0;
+        let doublesCount = 0;
+        let isRolling = false;
+        let soundEnabled = true;
+        let history = [];
+
+        // Current rotational positions
+        let rot1 = { x: 0, y: 0 };
+        let rot2 = { x: 0, y: 0 };
+
+        // Rotation angles corresponding to dice faces (1-6)
+        const faceRotations = {
+            1: { x: 0, y: 0 },
+            2: { x: 0, y: 90 },
+            3: { x: -90, y: 0 },
+            4: { x: 90, y: 0 },
+            5: { x: 0, y: -90 },
+            6: { x: 0, y: 180 }
+        };
+
+        // Web Audio API context for sound effects
+        let audioCtx = null;
+
+        function playRollSound() {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Wooden dice tumbling sound synthesis
+                for (let i = 0; i < 4; i++) {
+                    setTimeout(() => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(150 + Math.random() * 200, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.08);
+
+                        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.08);
+                    }, i * 180 + Math.random() * 50);
+                }
+            } catch (e) {}
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const soundIcon = document.getElementById('soundIcon');
+            soundIcon.className = soundEnabled ? 'fa-solid fa-volume-high text-amber-400' : 'fa-solid fa-volume-xmark text-slate-500';
+        }
+
+        function setDiceCount(count) {
+            if (isRolling) return;
+            numDice = count;
+
+            const btn1 = document.getElementById('btn1Dice');
+            const btn2 = document.getElementById('btn2Dice');
+            const dice2 = document.getElementById('dice2');
+
+            if (count === 1) {
+                btn1.className = "px-5 py-2 rounded-xl font-bold text-sm bg-amber-500 text-slate-950 shadow transition";
+                btn2.className = "px-5 py-2 rounded-xl font-bold text-sm text-slate-400 hover:text-white transition";
+                dice2.classList.add('hidden');
+            } else {
+                btn2.className = "px-5 py-2 rounded-xl font-bold text-sm bg-amber-500 text-slate-950 shadow transition";
+                btn1.className = "px-5 py-2 rounded-xl font-bold text-sm text-slate-400 hover:text-white transition";
+                dice2.classList.remove('hidden');
+            }
+        }
+
+        function rollDice() {
+            if (isRolling) return;
+            isRolling = true;
+
+            const rollBtn = document.getElementById('rollBtn');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultSubtitle = document.getElementById('resultSubtitle');
+
+            rollBtn.disabled = true;
+            rollBtn.classList.add('opacity-60', 'cursor-not-allowed');
+
+            playRollSound();
+
+            resultTitle.textContent = "Rolling...";
+            resultSubtitle.textContent = "Tumbling on table surface";
+
+            // Random outcomes (1 to 6)
+            const val1 = Math.floor(Math.random() * 6) + 1;
+            const val2 = Math.floor(Math.random() * 6) + 1;
+
+            // Extra full rotations for 3D physics effect
+            const extraRotX1 = (Math.floor(Math.random() * 3) + 3) * 360;
+            const extraRotY1 = (Math.floor(Math.random() * 3) + 3) * 360;
+            
+            const target1 = faceRotations[val1];
+            rot1.x += extraRotX1 + target1.x - (rot1.x % 360);
+            rot1.y += extraRotY1 + target1.y - (rot1.y % 360);
+
+            const dice1 = document.getElementById('dice1');
+            dice1.style.transform = `rotateX(${rot1.x}deg) rotateY(${rot1.y}deg)`;
+
+            if (numDice === 2) {
+                const extraRotX2 = (Math.floor(Math.random() * 3) + 3) * 360;
+                const extraRotY2 = (Math.floor(Math.random() * 3) + 3) * 360;
+                
+                const target2 = faceRotations[val2];
+                rot2.x += extraRotX2 + target2.x - (rot2.x % 360);
+                rot2.y += extraRotY2 + target2.y - (rot2.y % 360);
+
+                const dice2 = document.getElementById('dice2');
+                dice2.style.transform = `rotateX(${rot2.x}deg) rotateY(${rot2.y}deg)`;
+            }
+
+            // Reveal result after animation ends
+            setTimeout(() => {
+                totalRolls++;
+                const sum = numDice === 1 ? val1 : val1 + val2;
+
+                if (sum > highestSum) highestSum = sum;
+                
+                const isDouble = (numDice === 2 && val1 === val2);
+                if (isDouble) doublesCount++;
+
+                // Banner Updates
+                if (numDice === 1) {
+                    resultTitle.textContent = `ROLLED A ${val1}`;
+                    resultSubtitle.textContent = `Single die result`;
+                } else {
+                    resultTitle.textContent = `TOTAL: ${sum} (${val1} + ${val2})`;
+                    resultSubtitle.textContent = isDouble ? `🎉 DOUBLE ${val1}'s!` : `Two dice combination`;
+                }
+
+                // Update Stats Dashboard
+                document.getElementById('statRolls').textContent = totalRolls;
+                document.getElementById('statLastSum').textContent = sum;
+                document.getElementById('statHighest').textContent = highestSum;
+                document.getElementById('statDoubles').textContent = doublesCount;
+
+                // Push History
+                const historyTag = numDice === 1 ? `${val1}` : `${sum} <span class="text-xs text-slate-500">(${val1}+${val2})</span>`;
+                history.unshift(historyTag);
+                if (history.length > 8) history.pop();
+
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = history.map(item => `
+                    <span class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-semibold whitespace-nowrap">
+                        ${item}
+                    </span>
+                `).join('');
+
+                rollBtn.disabled = false;
+                rollBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+                isRolling = false;
+            }, 1200);
+        }
+
+        function resetStats() {
+            if (isRolling) return;
+            totalRolls = 0;
+            highestSum = 0;
+            doublesCount = 0;
+            history = [];
+
+            document.getElementById('statRolls').textContent = 0;
+            document.getElementById('statLastSum').textContent = '-';
+            document.getElementById('statHighest').textContent = '-';
+            document.getElementById('statDoubles').textContent = 0;
+
+            document.getElementById('resultTitle').textContent = "Ready to Roll";
+            document.getElementById('resultSubtitle').textContent = "Press Roll Dice or Spacebar";
+
+            document.getElementById('historyList').innerHTML = `<span class="text-xs text-slate-500 italic">No rolls recorded yet</span>`;
+        }
+
+        // Keyboard Shortcut (Spacebar to roll)
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !isRolling) {
+                e.preventDefault();
+                rollDice();
+            }
+        });
+    </script>
+</body>
+</html>
